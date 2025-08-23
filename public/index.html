@@ -179,6 +179,32 @@
             transform: none;
         }
 
+        .interrupt-btn {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+
+        .interrupt-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #ff5252, #d84315);
+        }
+
+        .interrupt-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .typing-indicator {
             display: none;
             padding: 15px 20px;
@@ -256,6 +282,13 @@
             font-size: 14px;
         }
 
+        .interruption-message {
+            text-align: center;
+            padding: 10px;
+            color: #ff6b6b;
+            font-style: italic;
+        }
+
         @media (max-width: 768px) {
             .chat-container {
                 height: 90vh;
@@ -316,6 +349,9 @@
                 <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
                     <i class="fas fa-paper-plane"></i> Send
                 </button>
+                <button class="interrupt-btn" id="interruptBtn" onclick="interruptResponse()" disabled style="display: none;">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
             </div>
         </div>
     </div>
@@ -323,6 +359,8 @@
     <script>
         let currentSessionId = null;
         let isTyping = false;
+        let isStreaming = false;
+        let currentResponseText = '';
 
         async function startConversation() {
             try {
@@ -370,17 +408,19 @@
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value.trim();
             
-            if (!message || !currentSessionId) return;
+            if (!message || !currentSessionId || isStreaming) return;
             
             // Add user message to chat
             addMessage(message, 'user');
             messageInput.value = '';
             
-            // Show typing indicator
+            // Show typing indicator and enable interruption
             showTypingIndicator();
+            enableInterruption();
             
             try {
-                const response = await fetch('/api/send-message', {
+                // Use streaming endpoint for better interruption support
+                const response = await fetch('/api/send-message-stream', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -395,17 +435,35 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                const data = await response.json();
+                // Handle streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                currentResponseText = '';
                 
-                if (data.response) {
-                    hideTypingIndicator();
-                    addMessage(data.response, 'bot');
-                } else {
-                    throw new Error('No response received from server');
+                // Create bot message container
+                const botMessageDiv = createBotMessageContainer();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    currentResponseText += chunk;
+                    
+                    // Update the bot message with streaming text
+                    updateBotMessage(botMessageDiv, currentResponseText);
                 }
+                
+                // Finalize the message
+                finalizeBotMessage(botMessageDiv, currentResponseText);
+                hideTypingIndicator();
+                disableInterruption();
+                
             } catch (error) {
                 console.error('Error sending message:', error);
                 hideTypingIndicator();
+                disableInterruption();
                 
                 // Show a helpful error message
                 let errorMessage = 'I encountered an issue processing your request. ';
@@ -424,6 +482,107 @@
                     addMessage("Let me tell you about Revolt Motors! We're India's first electric motorcycle manufacturer with innovative models like the RV400 and RV300. What would you like to know about our electric vehicles?", 'bot');
                 }, 1000);
             }
+        }
+
+        function createBotMessageContainer() {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.id = 'current-bot-message';
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.innerHTML = '<i class="fas fa-robot"></i>';
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = '';
+            
+            messageDiv.appendChild(avatar);
+            messageDiv.appendChild(content);
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            return messageDiv;
+        }
+
+        function updateBotMessage(messageDiv, text) {
+            const content = messageDiv.querySelector('.message-content');
+            content.textContent = text;
+            
+            // Scroll to bottom
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function finalizeBotMessage(messageDiv, text) {
+            const content = messageDiv.querySelector('.message-content');
+            content.textContent = text;
+            messageDiv.id = ''; // Remove temporary ID
+        }
+
+        async function interruptResponse() {
+            if (!currentSessionId || !isStreaming) return;
+            
+            try {
+                const response = await fetch('/api/interrupt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sessionId: currentSessionId
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('Response interrupted successfully');
+                    
+                    // Add interruption indicator to the current message
+                    const currentMessage = document.getElementById('current-bot-message');
+                    if (currentMessage) {
+                        const content = currentMessage.querySelector('.message-content');
+                        content.innerHTML += ' <span style="color: #ff6b6b; font-style: italic;">[Response interrupted]</span>';
+                        currentMessage.id = ''; // Remove temporary ID
+                    }
+                    
+                    hideTypingIndicator();
+                    disableInterruption();
+                    
+                    // Show interruption message
+                    showInterruptionMessage();
+                }
+            } catch (error) {
+                console.error('Error interrupting response:', error);
+            }
+        }
+
+        function showInterruptionMessage() {
+            const chatMessages = document.getElementById('chatMessages');
+            const interruptionDiv = document.createElement('div');
+            interruptionDiv.className = 'interruption-message';
+            interruptionDiv.innerHTML = `
+                <div style="text-align: center; padding: 10px; color: #ff6b6b; font-style: italic;">
+                    <i class="fas fa-stop-circle"></i> Response interrupted. You can ask a new question.
+                </div>
+            `;
+            chatMessages.appendChild(interruptionDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function enableInterruption() {
+            isStreaming = true;
+            document.getElementById('interruptBtn').style.display = 'inline-flex';
+            document.getElementById('sendBtn').disabled = true;
+        }
+
+        function disableInterruption() {
+            isStreaming = false;
+            document.getElementById('interruptBtn').style.display = 'none';
+            document.getElementById('sendBtn').disabled = false;
         }
 
         function addMessage(text, sender) {
@@ -474,7 +633,7 @@
 
         // Handle Enter key
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !isStreaming) {
                 sendMessage();
             }
         });

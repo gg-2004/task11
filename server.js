@@ -28,6 +28,8 @@ If asked about anything unrelated to Revolt Motors, politely redirect the conver
 
 // Store conversation history for each session
 const conversations = new Map();
+// Store active response streams for interruption
+const activeResponses = new Map();
 
 // Initialize Gemini Live model with better error handling
 let model = null;
@@ -128,7 +130,7 @@ app.post('/api/start-conversation', async (req, res) => {
   }
 });
 
-// Send message and get response
+// Send message and get response with interruption support
 app.post('/api/send-message', async (req, res) => {
   try {
     const { sessionId, message } = req.body;
@@ -178,6 +180,142 @@ app.post('/api/send-message', async (req, res) => {
       response: fallbackResponse,
       sessionId: req.body.sessionId 
     });
+  }
+});
+
+// New endpoint for streaming responses with interruption support
+app.post('/api/send-message-stream', async (req, res) => {
+  try {
+    const { sessionId, message } = req.body;
+    
+    if (!sessionId || !message) {
+      return res.status(400).json({ error: 'Session ID and message are required' });
+    }
+
+    const conversation = conversations.get(sessionId);
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation session not found' });
+    }
+
+    // Set headers for streaming
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Store this response stream for potential interruption
+    activeResponses.set(sessionId, res);
+
+    let response;
+    
+    if (conversation.type === 'fallback') {
+      // Use fallback responses with streaming simulation
+      response = getFallbackResponse(message);
+      console.log('📝 Fallback response for:', message);
+      
+      // Simulate streaming for fallback responses
+      const words = response.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        if (activeResponses.has(sessionId)) { // Check if not interrupted
+          res.write(words[i] + ' ');
+          await new Promise(resolve => setTimeout(resolve, 100)); // Simulate typing delay
+        } else {
+          break; // Response was interrupted
+        }
+      }
+    } else if (conversation.type === 'gemini' && conversation.chat) {
+      try {
+        // Try Gemini API with streaming
+        const fullMessage = `${SYSTEM_INSTRUCTIONS}\n\nUser message: ${message}`;
+        const result = await conversation.chat.sendMessage(fullMessage);
+        const apiResponse = await result.response;
+        response = apiResponse.text();
+        console.log('🤖 Gemini API response for:', message);
+        
+        // Stream the response word by word
+        const words = response.split(' ');
+        for (let i = 0; i < words.length; i++) {
+          if (activeResponses.has(sessionId)) { // Check if not interrupted
+            res.write(words[i] + ' ');
+            await new Promise(resolve => setTimeout(resolve, 80)); // Typing speed
+          } else {
+            break; // Response was interrupted
+          }
+        }
+      } catch (geminiError) {
+        console.log('⚠️ Gemini API failed, using fallback for:', message);
+        response = getFallbackResponse(message);
+        
+        // Stream fallback response
+        const words = response.split(' ');
+        for (let i = 0; i < words.length; i++) {
+          if (activeResponses.has(sessionId)) {
+            res.write(words[i] + ' ');
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } else {
+            break;
+          }
+        }
+        
+        // Switch this session to fallback mode
+        conversations.set(sessionId, { type: 'fallback' });
+      }
+    } else {
+      response = getFallbackResponse(message);
+      
+      // Stream fallback response
+      const words = response.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        if (activeResponses.has(sessionId)) {
+          res.write(words[i] + ' ');
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Clean up
+    activeResponses.delete(sessionId);
+    res.end();
+    
+  } catch (error) {
+    console.error('Error in streaming response:', error);
+    activeResponses.delete(req.body.sessionId);
+    res.status(500).end('Error occurred');
+  }
+});
+
+// Interruption endpoint
+app.post('/api/interrupt', (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    const responseStream = activeResponses.get(sessionId);
+    if (responseStream) {
+      // Close the response stream
+      responseStream.end();
+      activeResponses.delete(sessionId);
+      console.log('🛑 Response interrupted for session:', sessionId);
+      
+      res.json({ 
+        success: true, 
+        message: 'Response interrupted successfully',
+        sessionId 
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        message: 'No active response to interrupt',
+        sessionId 
+      });
+    }
+  } catch (error) {
+    console.error('Error interrupting response:', error);
+    res.status(500).json({ error: 'Failed to interrupt response' });
   }
 });
 
@@ -234,7 +372,8 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     model: model ? 'Gemini Live API initialized' : 'Model not initialized',
     fallbackMode: useFallbackMode,
-    activeSessions: conversations.size
+    activeSessions: conversations.size,
+    activeResponses: activeResponses.size
   });
 });
 
@@ -256,5 +395,6 @@ app.listen(PORT, () => {
   console.log(`🤖 Using Gemini API with key: ${config.GEMINI_API_KEY.substring(0, 10)}...`);
   console.log(`📋 System Instructions: ${SYSTEM_INSTRUCTIONS.substring(0, 100)}...`);
   console.log(`🔄 Fallback Mode: ${useFallbackMode ? 'Enabled' : 'Disabled'}`);
+  console.log(`🛑 Interruption System: Enabled`);
 });
 
