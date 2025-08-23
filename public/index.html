@@ -422,22 +422,37 @@
                 // Create bot message container
                 const botMessageDiv = createBotMessageContainer();
                 
-                while (true) {
-                    const { done, value } = await reader.read();
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        currentResponseText += chunk;
+                        
+                        // Update the bot message with streaming text
+                        updateBotMessage(botMessageDiv, currentResponseText);
+                    }
                     
-                    if (done) break;
-                    
-                    const chunk = decoder.decode(value);
-                    currentResponseText += chunk;
-                    
-                    // Update the bot message with streaming text
-                    updateBotMessage(botMessageDiv, currentResponseText);
+                    // Finalize the message if not interrupted
+                    if (isStreaming) {
+                        finalizeBotMessage(botMessageDiv, currentResponseText);
+                    }
+                } catch (streamError) {
+                    console.log('Test stream interrupted or error occurred');
+                    // Check if this was an intentional interruption
+                    if (!isStreaming) {
+                        // Response was interrupted, add indicator
+                        const content = botMessageDiv.querySelector('.message-content');
+                        content.innerHTML += ' <span style="color: #ff6b6b; font-style: italic;">[Response interrupted]</span>';
+                        botMessageDiv.id = '';
+                    }
+                } finally {
+                    // Always clean up
+                    hideTypingIndicator();
+                    disableInterruption();
                 }
-                
-                // Finalize the message
-                finalizeBotMessage(botMessageDiv, currentResponseText);
-                hideTypingIndicator();
-                disableInterruption();
                 
             } catch (error) {
                 console.error('Error in test interruption:', error);
@@ -530,22 +545,37 @@
                 // Create bot message container
                 const botMessageDiv = createBotMessageContainer();
                 
-                while (true) {
-                    const { done, value } = await reader.read();
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        currentResponseText += chunk;
+                        
+                        // Update the bot message with streaming text
+                        updateBotMessage(botMessageDiv, currentResponseText);
+                    }
                     
-                    if (done) break;
-                    
-                    const chunk = decoder.decode(value);
-                    currentResponseText += chunk;
-                    
-                    // Update the bot message with streaming text
-                    updateBotMessage(botMessageDiv, currentResponseText);
+                    // Finalize the message if not interrupted
+                    if (isStreaming) {
+                        finalizeBotMessage(botMessageDiv, currentResponseText);
+                    }
+                } catch (streamError) {
+                    console.log('Stream interrupted or error occurred');
+                    // Check if this was an intentional interruption
+                    if (!isStreaming) {
+                        // Response was interrupted, add indicator
+                        const content = botMessageDiv.querySelector('.message-content');
+                        content.innerHTML += ' <span style="color: #ff6b6b; font-style: italic;">[Response interrupted]</span>';
+                        botMessageDiv.id = '';
+                    }
+                } finally {
+                    // Always clean up
+                    hideTypingIndicator();
+                    disableInterruption();
                 }
-                
-                // Finalize the message
-                finalizeBotMessage(botMessageDiv, currentResponseText);
-                hideTypingIndicator();
-                disableInterruption();
                 
             } catch (error) {
                 console.error('Error sending message:', error);
@@ -641,9 +671,14 @@
                     
                     // Show interruption message
                     showInterruptionMessage();
+                } else {
+                    console.log('No active response to interrupt');
                 }
             } catch (error) {
                 console.error('Error interrupting response:', error);
+                // Even if there's an error, try to reset the UI state
+                hideTypingIndicator();
+                disableInterruption();
             }
         }
 
@@ -661,15 +696,21 @@
         }
 
         function enableInterruption() {
+            console.log('🔄 Enabling interruption mode');
             isStreaming = true;
             document.getElementById('interruptBtn').style.display = 'inline-flex';
             document.getElementById('sendBtn').disabled = true;
+            document.getElementById('testInterruptBtn').disabled = true;
+            console.log('✅ Interruption enabled - Stop button visible');
         }
 
         function disableInterruption() {
+            console.log('🔄 Disabling interruption mode');
             isStreaming = false;
             document.getElementById('interruptBtn').style.display = 'none';
             document.getElementById('sendBtn').disabled = false;
+            document.getElementById('testInterruptBtn').disabled = false;
+            console.log('✅ Interruption disabled - Stop button hidden');
         }
 
         function addMessage(text, sender) {
