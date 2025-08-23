@@ -391,18 +391,38 @@
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const data = await response.json();
                 
                 if (data.response) {
                     hideTypingIndicator();
                     addMessage(data.response, 'bot');
                 } else {
-                    throw new Error('No response received');
+                    throw new Error('No response received from server');
                 }
             } catch (error) {
                 console.error('Error sending message:', error);
                 hideTypingIndicator();
-                showError('Failed to send message. Please try again.');
+                
+                // Show a helpful error message
+                let errorMessage = 'I encountered an issue processing your request. ';
+                if (error.message.includes('fetch')) {
+                    errorMessage += 'Please check your internet connection and try again.';
+                } else if (error.message.includes('HTTP error')) {
+                    errorMessage += 'The server is experiencing issues. Please try again in a moment.';
+                } else {
+                    errorMessage += 'Please try again or ask a different question about Revolt Motors.';
+                }
+                
+                showError(errorMessage);
+                
+                // Add a helpful fallback response
+                setTimeout(() => {
+                    addMessage("Let me tell you about Revolt Motors! We're India's first electric motorcycle manufacturer with innovative models like the RV400 and RV300. What would you like to know about our electric vehicles?", 'bot');
+                }, 1000);
             }
         }
 
