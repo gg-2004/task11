@@ -289,6 +289,32 @@
             font-style: italic;
         }
 
+        .test-interrupt-btn {
+            background: linear-gradient(135deg, #00b894, #00a085);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+
+        .test-interrupt-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #00a085, #008f7a);
+        }
+
+        .test-interrupt-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         @media (max-width: 768px) {
             .chat-container {
                 height: 90vh;
@@ -352,6 +378,9 @@
                 <button class="interrupt-btn" id="interruptBtn" onclick="interruptResponse()" disabled style="display: none;">
                     <i class="fas fa-stop"></i> Stop
                 </button>
+                <button class="test-interrupt-btn" id="testInterruptBtn" onclick="testInterruption()" disabled>
+                    <i class="fas fa-play"></i> Test Interruption
+                </button>
             </div>
         </div>
     </div>
@@ -361,6 +390,63 @@
         let isTyping = false;
         let isStreaming = false;
         let currentResponseText = '';
+
+        async function testInterruption() {
+            if (!currentSessionId) return;
+            
+            // Show typing indicator and enable interruption
+            showTypingIndicator();
+            enableInterruption();
+            
+            try {
+                // Use test interruption endpoint
+                const response = await fetch('/api/test-interruption', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        sessionId: currentSessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Handle streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                currentResponseText = '';
+                
+                // Create bot message container
+                const botMessageDiv = createBotMessageContainer();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    currentResponseText += chunk;
+                    
+                    // Update the bot message with streaming text
+                    updateBotMessage(botMessageDiv, currentResponseText);
+                }
+                
+                // Finalize the message
+                finalizeBotMessage(botMessageDiv, currentResponseText);
+                hideTypingIndicator();
+                disableInterruption();
+                
+            } catch (error) {
+                console.error('Error in test interruption:', error);
+                hideTypingIndicator();
+                disableInterruption();
+                
+                showError('Test interruption failed. Please try again.');
+            }
+        }
 
         async function startConversation() {
             try {
@@ -379,6 +465,7 @@
                     // Enable input
                     document.getElementById('messageInput').disabled = false;
                     document.getElementById('sendBtn').disabled = false;
+                    document.getElementById('testInterruptBtn').disabled = false; // Enable test interruption button
                     
                     // Clear welcome message and add system info
                     document.getElementById('chatMessages').innerHTML = `
