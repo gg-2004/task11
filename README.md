@@ -4,12 +4,15 @@ A server-to-server AI chat application built with Node.js/Express and Google's G
 
 ## 🚀 Features
 
-- **AI-Powered Chat**: Intelligent conversations about Revolt Motors using Gemini Live API
-- **Server-to-Server Architecture**: Secure backend communication with Gemini API
-- **Responsive Web Interface**: Modern, mobile-friendly chat interface
-- **System Instructions**: AI is programmed to only discuss Revolt Motors topics
-- **Real-time Chat**: Live conversation with typing indicators and smooth UX
-- **Session Management**: Persistent conversation sessions for better context
+* **AI-Powered Chat**: Intelligent conversations about Revolt Motors using Gemini Live API
+* **Server-to-Server Architecture**: Secure backend communication with Gemini API
+* **Responsive Web Interface**: Modern, mobile-friendly chat interface
+* **System Instructions**: AI is programmed to only discuss Revolt Motors topics
+* **Real-time Chat**: Live conversation with typing indicators and smooth UX
+* **Session Management**: Persistent conversation sessions for better context
+* **AI Response Interruption**: Stop AI responses mid-stream with the Stop button
+* **Streaming Responses**: Word-by-word AI responses for better user experience
+* **Fallback System**: Intelligent fallback responses when Gemini API is unavailable
 
 ## 🛠️ Technical Stack
 
@@ -83,28 +86,56 @@ http://localhost:3000
 - "Tell me about Revolt Motors' sustainability initiatives"
 
 ### System Instructions
+
 The AI is programmed with specific system instructions to:
-- Only discuss Revolt Motors topics
-- Provide accurate product information
-- Share company history and achievements
-- Guide users to dealerships and service centers
-- Explain electric vehicle technology as it relates to Revolt Motors
+
+* Only discuss Revolt Motors topics
+* Provide accurate product information
+* Share company history and achievements
+* Guide users to dealerships and service centers
+* Explain electric vehicle technology as it relates to Revolt Motors
+
+### AI Response Interruption
+
+The application now features a powerful interruption system:
+
+* **Stop Button**: Appears during AI responses and allows you to stop them mid-stream
+* **Test Interruption**: Use the green "Test Interruption" button to demonstrate the feature
+* **Streaming Responses**: AI responds word-by-word for better user control
+* **Visual Feedback**: Clear indicators when responses are interrupted
+* **Debug Tools**: Purple "Debug" button shows current system state
+
+#### How to Use Interruption:
+1. Start a conversation and ask a question
+2. Click "Test Interruption" to see a long response
+3. While the AI is responding, click the red "Stop" button
+4. The response will immediately stop and show "[Response interrupted]"
 
 ## 🔧 API Endpoints
 
 ### Backend API Routes
-- `POST /api/start-conversation` - Initialize a new chat session
-- `POST /api/send-message` - Send a message and get AI response
-- `POST /api/audio-input` - Audio input endpoint (for future implementation)
-- `GET /api/conversation/:sessionId` - Get conversation session info
-- `GET /api/health` - Server health check
+
+* `POST /api/start-conversation` - Initialize a new chat session
+* `POST /api/send-message` - Send a message and get AI response (legacy)
+* `POST /api/send-message-stream` - Send a message and get streaming AI response with interruption support
+* `POST /api/interrupt` - Interrupt an active streaming response
+* `POST /api/test-interruption` - Test the interruption feature with a long response
+* `POST /api/audio-input` - Audio input endpoint (for future implementation)
+* `GET /api/conversation/:sessionId` - Get conversation session info
+* `GET /api/health` - Server health check
 
 ### Frontend Features
-- Real-time chat interface
-- Typing indicators
-- Responsive design for mobile and desktop
-- Error handling and user feedback
-- Session persistence
+
+* Real-time chat interface
+* Typing indicators
+* Responsive design for mobile and desktop
+* Error handling and user feedback
+* Session persistence
+* **Streaming AI responses** with word-by-word display
+* **Stop button** for interrupting AI responses mid-stream
+* **Test Interruption button** for demonstrating the feature
+* **Debug button** for troubleshooting system state
+* Visual feedback for interrupted responses
 
 ## 🏗️ Architecture Details
 
