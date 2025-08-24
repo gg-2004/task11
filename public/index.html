@@ -283,10 +283,19 @@
         }
 
         .interruption-message {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            margin: 10px 0;
+            padding: 15px;
             text-align: center;
-            padding: 10px;
+            color: #856404;
+            font-weight: 500;
+        }
+
+        .interruption-message i {
+            margin-right: 8px;
             color: #ff6b6b;
-            font-style: italic;
         }
 
         .test-interrupt-btn {
@@ -310,6 +319,32 @@
         }
 
         .test-interrupt-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .debug-btn {
+            background: linear-gradient(135deg, #4a148c, #311b92);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 10px;
+        }
+
+        .debug-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #311b92, #283593);
+        }
+
+        .debug-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
@@ -381,6 +416,9 @@
                 <button class="test-interrupt-btn" id="testInterruptBtn" onclick="testInterruption()" disabled>
                     <i class="fas fa-play"></i> Test Interruption
                 </button>
+                <button class="debug-btn" id="debugBtn" onclick="debugState()" style="display: inline-flex;">
+                    <i class="fas fa-bug"></i> Debug
+                </button>
             </div>
         </div>
     </div>
@@ -394,11 +432,15 @@
         async function testInterruption() {
             if (!currentSessionId) return;
             
+            console.log('🧪 Starting test interruption...');
+            console.log('🔄 Current streaming state:', isStreaming);
+            
             // Show typing indicator and enable interruption
             showTypingIndicator();
             enableInterruption();
             
             try {
+                console.log('🔄 Starting test streaming request...');
                 // Use test interruption endpoint
                 const response = await fetch('/api/test-interruption', {
                     method: 'POST',
@@ -414,6 +456,7 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
+                console.log('✅ Test streaming response started');
                 // Handle streaming response
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -435,27 +478,30 @@
                         updateBotMessage(botMessageDiv, currentResponseText);
                     }
                     
+                    console.log('✅ Test streaming completed normally');
                     // Finalize the message if not interrupted
                     if (isStreaming) {
                         finalizeBotMessage(botMessageDiv, currentResponseText);
                     }
                 } catch (streamError) {
-                    console.log('Test stream interrupted or error occurred');
+                    console.log('⚠️ Test stream interrupted or error occurred:', streamError);
                     // Check if this was an intentional interruption
                     if (!isStreaming) {
+                        console.log('✅ Test response was intentionally interrupted');
                         // Response was interrupted, add indicator
                         const content = botMessageDiv.querySelector('.message-content');
                         content.innerHTML += ' <span style="color: #ff6b6b; font-style: italic;">[Response interrupted]</span>';
                         botMessageDiv.id = '';
                     }
                 } finally {
+                    console.log('🧹 Cleaning up test streaming state');
                     // Always clean up
                     hideTypingIndicator();
                     disableInterruption();
                 }
                 
             } catch (error) {
-                console.error('Error in test interruption:', error);
+                console.error('❌ Error in test interruption:', error);
                 hideTypingIndicator();
                 disableInterruption();
                 
@@ -512,6 +558,9 @@
             
             if (!message || !currentSessionId || isStreaming) return;
             
+            console.log('📤 Sending message:', message);
+            console.log('🔄 Current streaming state:', isStreaming);
+            
             // Add user message to chat
             addMessage(message, 'user');
             messageInput.value = '';
@@ -521,6 +570,7 @@
             enableInterruption();
             
             try {
+                console.log('🔄 Starting streaming request...');
                 // Use streaming endpoint for better interruption support
                 const response = await fetch('/api/send-message-stream', {
                     method: 'POST',
@@ -537,6 +587,7 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
+                console.log('✅ Streaming response started');
                 // Handle streaming response
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -558,27 +609,30 @@
                         updateBotMessage(botMessageDiv, currentResponseText);
                     }
                     
+                    console.log('✅ Streaming completed normally');
                     // Finalize the message if not interrupted
                     if (isStreaming) {
                         finalizeBotMessage(botMessageDiv, currentResponseText);
                     }
                 } catch (streamError) {
-                    console.log('Stream interrupted or error occurred');
+                    console.log('⚠️ Stream interrupted or error occurred:', streamError);
                     // Check if this was an intentional interruption
                     if (!isStreaming) {
+                        console.log('✅ Response was intentionally interrupted');
                         // Response was interrupted, add indicator
                         const content = botMessageDiv.querySelector('.message-content');
                         content.innerHTML += ' <span style="color: #ff6b6b; font-style: italic;">[Response interrupted]</span>';
                         botMessageDiv.id = '';
                     }
                 } finally {
+                    console.log('🧹 Cleaning up streaming state');
                     // Always clean up
                     hideTypingIndicator();
                     disableInterruption();
                 }
                 
             } catch (error) {
-                console.error('Error sending message:', error);
+                console.error('❌ Error sending message:', error);
                 hideTypingIndicator();
                 disableInterruption();
                 
@@ -605,7 +659,7 @@
             const chatMessages = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message bot';
-            messageDiv.id = 'current-bot-message';
+            messageDiv.id = 'current-bot-message'; // Temporary ID for interruption handling
             
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
@@ -617,8 +671,9 @@
             
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(content);
-            
             chatMessages.appendChild(messageDiv);
+            
+            // Scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
             
             return messageDiv;
@@ -627,22 +682,38 @@
         function updateBotMessage(messageDiv, text) {
             const content = messageDiv.querySelector('.message-content');
             content.textContent = text;
-            
-            // Scroll to bottom
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            messageDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
         function finalizeBotMessage(messageDiv, text) {
+            // Remove temporary ID
+            messageDiv.id = '';
+            
+            // Final update
             const content = messageDiv.querySelector('.message-content');
             content.textContent = text;
-            messageDiv.id = ''; // Remove temporary ID
+            
+            // Scroll to bottom
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
         }
 
         async function interruptResponse() {
-            if (!currentSessionId || !isStreaming) return;
+            console.log('🛑 Interrupt button clicked');
+            console.log('Current session ID:', currentSessionId);
+            console.log('Is streaming:', isStreaming);
+            
+            if (!currentSessionId) {
+                console.log('❌ No session ID');
+                return;
+            }
+            
+            if (!isStreaming) {
+                console.log('❌ Not currently streaming');
+                return;
+            }
             
             try {
+                console.log('🔄 Sending interrupt request...');
                 const response = await fetch('/api/interrupt', {
                     method: 'POST',
                     headers: {
@@ -654,9 +725,10 @@
                 });
 
                 const data = await response.json();
+                console.log('📡 Interrupt response:', data);
                 
                 if (data.success) {
-                    console.log('Response interrupted successfully');
+                    console.log('✅ Response interrupted successfully');
                     
                     // Add interruption indicator to the current message
                     const currentMessage = document.getElementById('current-bot-message');
@@ -672,10 +744,10 @@
                     // Show interruption message
                     showInterruptionMessage();
                 } else {
-                    console.log('No active response to interrupt');
+                    console.log('⚠️ No active response to interrupt');
                 }
             } catch (error) {
-                console.error('Error interrupting response:', error);
+                console.error('❌ Error interrupting response:', error);
                 // Even if there's an error, try to reset the UI state
                 hideTypingIndicator();
                 disableInterruption();
@@ -698,19 +770,23 @@
         function enableInterruption() {
             console.log('🔄 Enabling interruption mode');
             isStreaming = true;
-            document.getElementById('interruptBtn').style.display = 'inline-flex';
+            const interruptBtn = document.getElementById('interruptBtn');
+            interruptBtn.style.display = 'inline-flex';
+            interruptBtn.disabled = false; // Enable the button
             document.getElementById('sendBtn').disabled = true;
             document.getElementById('testInterruptBtn').disabled = true;
-            console.log('✅ Interruption enabled - Stop button visible');
+            console.log('✅ Interruption enabled - Stop button visible and enabled');
         }
 
         function disableInterruption() {
             console.log('🔄 Disabling interruption mode');
             isStreaming = false;
-            document.getElementById('interruptBtn').style.display = 'none';
+            const interruptBtn = document.getElementById('interruptBtn');
+            interruptBtn.style.display = 'none';
+            interruptBtn.disabled = true; // Disable the button
             document.getElementById('sendBtn').disabled = false;
             document.getElementById('testInterruptBtn').disabled = false;
-            console.log('✅ Interruption disabled - Stop button hidden');
+            console.log('✅ Interruption disabled - Stop button hidden and disabled');
         }
 
         function addMessage(text, sender) {
@@ -757,6 +833,20 @@
             errorDiv.textContent = message;
             chatMessages.appendChild(errorDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function debugState() {
+            console.log('=== Debug State ===');
+            console.log('Current Session ID:', currentSessionId);
+            console.log('Is Typing:', isTyping);
+            console.log('Is Streaming:', isStreaming);
+            console.log('Current Response Text:', currentResponseText);
+            console.log('Interrupt Button Visibility:', document.getElementById('interruptBtn').style.display);
+            console.log('Interrupt Button Disabled:', document.getElementById('interruptBtn').disabled);
+            console.log('Send Button Disabled:', document.getElementById('sendBtn').disabled);
+            console.log('Test Interruption Button Disabled:', document.getElementById('testInterruptBtn').disabled);
+            console.log('Message Input Disabled:', document.getElementById('messageInput').disabled);
+            console.log('=== End Debug ===');
         }
 
         // Handle Enter key
